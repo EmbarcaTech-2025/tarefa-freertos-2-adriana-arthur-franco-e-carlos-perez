@@ -1,7 +1,7 @@
 #ifndef CAR_INDICATORS_TASK_H
 #define CAR_INDICATORS_TASK_H
 
-#include "FreeRTOSConfig.h"
+#include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h" // Para acessar a fila do joystick
 

@@ -24,12 +24,12 @@ set(PICO_SDK_PATH "C:/Users/profc/.pico-sdk/sdk/2.1.1")
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
 # FreeRTOS
-if (DEFINED ENV{FREERTOS_PATH})
-    set(FREERTOS_PATH $ENV{FREERTOS_PATH})
+if (DEFINED ENV{FREERTOS_KERNEL_PATH})
+    set(FREERTOS_KERNEL_PATH $ENV{FREERTOS_KERNEL_PATH})
 else()
-    set(FREERTOS_PATH ${CMAKE_CURRENT_LIST_DIR}/FreeRTOS)
+    set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/FreeRTOS)
 endif()
-message("FreeRTOS Kernel located in ${FREERTOS_PATH}")
+message("FreeRTOS Kernel located in ${FREERTOS_KERNEL_PATH}")
 
 # Define o projeto
 project(embarcatech-tarefa-freertos-2 C CXX ASM)
@@ -38,7 +38,7 @@ project(embarcatech-tarefa-freertos-2 C CXX ASM)
 pico_sdk_init()
 
 # Importa o FreeRTOS (depois do pico_sdk_init!)
-include(${FREERTOS_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
+include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
 # Adiciona o executável
 add_executable(embarcatech-tarefa-freertos-2
@@ -48,8 +48,8 @@ add_executable(embarcatech-tarefa-freertos-2
         src/joystick_task.c
         src/car_indicators_task.c
         # src/car_status_data.h
-        src/car_control_task.c
-        src/led_matrix_task.c
+        #src/car_control_task.c
+        #src/led_matrix_task.c
         # led_matrix_task.h
 )
 
@@ -71,9 +71,8 @@ target_link_libraries(embarcatech-tarefa-freertos-2
     pico_stdlib
     hardware_i2c
     hardware_adc
-    hardware_pio
-    hardware_clocks
-    FreeRTOS-Kernel
+    #hardware_pio
+    #hardware_clocks
     FreeRTOS-Kernel-Heap4
 )
 
