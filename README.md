@@ -1,17 +1,19 @@
 
 # Tarefa: Roteiro de FreeRTOS #2 - EmbarcaTech 2025
 
-Autor: **Insira Seu Nome**
+Autor:  **Adriana Paula**
+        **Arthur Franco**
+        **Carlos Perez**
+
 
 Curso: Residência Tecnológica em Sistemas Embarcados
 
 Instituição: EmbarcaTech - HBr
 
-Campinas, ___ de 2025
+Campinas, junho de 2025
 
 ---
-
-<!-- INSIRA O CONTEÚDO DO SEU README AQUI! -->
+UEBA
 
 ---
 
