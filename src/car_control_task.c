@@ -1,109 +1,85 @@
-// car_control_task.c
-#include "car_control_task.h"
-#include "joystick_task.h"       // Para a fila do joystick
-#include "car_status_data.h"     // Para a estrutura de status do carro
-#include "led_matrix_task.h"     // Para a fila de status do carro
-#include "car_indicators_task.h" // Para os LEDs RGB e Buzzer
+// src/car_control_task.c
+#include <stdio.h> // Para debug, pode ser removido depois
+#include "pico/stdlib.h"
 
-#include "pico/stdlib.h" // Para printf e sleep_ms para depuração
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
 
-// Variáveis internas da lógica do carro
-static int16_t g_current_acceleration = 0; // 0 a 2047 (ou 0 a 100 em escala)
-static int8_t  g_current_gear = 0;         // 0 (Neutro), 1, 2, 3, 4, 5
-static bool    g_abs_active = false;
-static bool    g_airbag_deployed = false;
+#include "car_status_data.h" // Para a estrutura car_status_t
+#include "joystick_task.h"    // Para a estrutura joystick_data_t e a fila xJoystickQueue
 
-// Thresholds para a lógica de aceleração/frenagem
-#define JOYSTICK_ACCEL_THRESHOLD  500  // Y > 500 para acelerar
-#define JOYSTICK_BRAKE_THRESHOLD  -500 // Y < -500 para frear
-#define MAX_ACCELERATION_VALUE    2000 // Valor máximo de aceleração (simulado)
-#define MIN_ACCELERATION_VALUE    0    // Valor mínimo de aceleração
+// As filas serão criadas em main.c e acessadas globalmente via extern
+extern QueueHandle_t xJoystickQueue;
+extern QueueHandle_t xCarStatusQueue;
+
+// Constantes para cálculo de velocidade
+#define MAX_SPEED_KMH           100    // Velocidade máxima em Km/h
+#define JOYSTICK_MAX_ABS_VAL    2048   // Valor máximo absoluto do joystick (aprox. 2047 do centro)
+#define NEUTRAL_THRESHOLD_JOY   100    // Valores do joystick +/- esta faixa são considerados neutros
+
+// Fatores de simulação (ajuste estes valores para o comportamento desejado)
+// Quanto maior o fator, mais rápido o carro acelera/freia/desacelera
+#define ACCELERATION_RATE       0.05f  // Taxa de aceleração por tick (ajustar!)
+#define BRAKE_RATE              0.08f  // Taxa de frenagem por tick (ajustar!)
+#define DRAG_RATE               0.02f  // Taxa de desaceleração natural (arrasto) por tick (ajustar!)
+
+// Variável estática para manter a velocidade atual
+static float current_speed_float = 0.0f; // Usamos float para cálculos mais suaves
 
 void vCarControlTask(void *pvParameters) {
-    joystick_data_t joystick_data;
-    car_status_t car_status;
+    joystick_data_t received_joystick_data;
+    car_status_t current_car_status;
+
+    // Inicializa o status do carro (valores padrão)
+    current_car_status.current_acceleration = 0; // Usaremos este campo para a velocidade (Km/h)
+    current_car_status.current_gear = 0;         // Começa em Neutro
+    current_car_status.abs_active = false;       // ABS inativo
+    current_car_status.airbag_deployed = false;  // Airbag não acionado
+
+    // Para controlar a frequência da tarefa
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(50); // Atualiza a cada 50ms
+    xLastWakeTime = xTaskGetTickCount();
 
     while (true) {
-        // Tenta receber os dados mais recentes do joystick
-        if (xQueueReceive(xJoystickQueue, &joystick_data, pdMS_TO_TICKS(50)) == pdPASS) {
-            // --- Lógica de Aceleração / Frenagem ---
-            if (joystick_data.y_axis > JOYSTICK_ACCEL_THRESHOLD) {
-                // Acelerando
-                g_current_acceleration += (joystick_data.y_axis - JOYSTICK_ACCEL_THRESHOLD) / 100; // Ajuste o divisor para a sensibilidade
-                if (g_current_acceleration > MAX_ACCELERATION_VALUE) g_current_acceleration = MAX_ACCELERATION_VALUE;
-                
-                // Envia sinal para LED Verde (Aceleração)
-                // Usamos a função auxiliar da car_indicators_task para evitar duplicação de lógica de pinos
-                set_led(LED_GREEN_PIN, true); // Supondo que LED_GREEN_PIN e set_led estejam acessíveis (via include)
-                set_led(LED_RED_PIN, false);
-            } else if (joystick_data.y_axis < JOYSTICK_BRAKE_THRESHOLD) {
-                // Freando
-                g_current_acceleration += (joystick_data.y_axis - JOYSTICK_BRAKE_THRESHOLD) / 50; // Freio mais agressivo
-                if (g_current_acceleration < MIN_ACCELERATION_VALUE) g_current_acceleration = MIN_ACCELERATION_VALUE;
-                
-                // Envia sinal para LED Vermelho (Frenagem)
-                set_led(LED_RED_PIN, true);
-                set_led(LED_GREEN_PIN, false);
-            } else {
-                // Inatividade do joystick Y - carro desacelera naturalmente (freio motor)
-                g_current_acceleration -= 10; // Taxa de desaceleração natural
-                if (g_current_acceleration < MIN_ACCELERATION_VALUE) g_current_acceleration = MIN_ACCELERATION_VALUE;
+        // Tenta receber os dados mais recentes do joystick da fila
+        // Não bloqueia (0 tick), se não houver dados, usa os últimos conhecidos
+        if (xQueueReceive(xJoystickQueue, &received_joystick_data, 0) == pdPASS) {
+            int16_t joystick_y = received_joystick_data.y_axis;
 
-                set_led(LED_GREEN_PIN, false);
-                set_led(LED_RED_PIN, false);
-            }
-            
-            // --- Lógica do Botão SW (Buzina, por enquanto) ---
-            g_airbag_deployed = false; // Reset airbag (para testar)
-            g_abs_active = false;      // Reset ABS (para testar)
-
-            if (joystick_data.sw_state) { // Botão pressionado
-                // Como você inverteu a lógica antes: (inverta a lógica) acende o azul (buzina).
-                // Se pressionar A, freio brusco para entrada do abs.
-                // Se pressionar B, colisão e atuação do Air Bag.
-
-                // Por enquanto, vamos usar o SW para a buzina/LED azul.
-                // Depois, dividiremos para botões A e B.
-                set_led(LED_BLUE_PIN, true);
-                buzzer_on(); // Assumindo que buzzer_on() está acessível
-            } else {
-                set_led(LED_BLUE_PIN, false);
-                buzzer_off();
+            // Lógica de simulação de velocidade
+            if (joystick_y > NEUTRAL_THRESHOLD_JOY) { // Acelerando
+                // Mapeia o valor do joystick para um fator de aceleração
+                float accel_input = (float)(joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
+                current_speed_float += accel_input * ACCELERATION_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Ajusta pela frequência
+            } else if (joystick_y < -NEUTRAL_THRESHOLD_JOY) { // Freando
+                // Mapeia o valor do joystick para um fator de frenagem
+                float brake_input = (float)(-joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
+                current_speed_float -= brake_input * BRAKE_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Ajusta pela frequência
+            } else { // Joystick na zona neutra, aplica arrasto (drag)
+                current_speed_float -= DRAG_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Desacelera naturalmente
             }
 
-            // --- Lógica Temporária para ABS e Airbag com botões A e B ---
-            // (Assumindo que você terá outros botões ou remapeará os do joystick)
-            // Por enquanto, vamos simular:
-            // Botão A (SW) para ABS (se Y negativo)
-            // Botão B (não temos um pino para B ainda, mas se tivesse, seria algo assim)
-            // if (joystick_data.sw_state && joystick_data.y_axis < JOYSTICK_BRAKE_THRESHOLD) {
-            //     g_abs_active = true;
-            //     // Frenagem ainda mais brusca se ABS ativo
-            //     g_current_acceleration -= 500; 
-            //     if (g_current_acceleration < MIN_ACCELERATION_VALUE) g_current_acceleration = MIN_ACCELERATION_VALUE;
-            // }
+            // Garante que a velocidade não seja negativa
+            if (current_speed_float < 0.0f) {
+                current_speed_float = 0.0f;
+            }
 
-            // if (joystick_data.sw_state && joystick_data.x_axis > 1000) { // Exemplo: SW + Joystick X para direita = colisão
-            //     g_airbag_deployed = true;
-            //     g_current_acceleration = 0; // Para imediatamente
-            //     // Tocar som de colisão
-            // }
+            // Garante que a velocidade não exceda o máximo
+            if (current_speed_float > MAX_SPEED_KMH) {
+                current_speed_float = MAX_SPEED_KMH;
+            }
 
+            // Atualiza a estrutura de status do carro
+            current_car_status.current_acceleration = (int16_t)current_speed_float; // Usamos este campo para velocidade em Km/h
 
-            // --- Preparar e Enviar Status do Carro para Outras Tarefas ---
-            car_status.current_acceleration = g_current_acceleration;
-            car_status.current_gear = g_current_gear; // Por enquanto, sempre 0
-            car_status.abs_active = g_abs_active;
-            car_status.airbag_deployed = g_airbag_deployed;
-
-            // Envia o status atualizado para a fila da matriz de LEDs
-            xQueueSend(xCarStatusQueue, &car_status, 0); 
-
-            // Opcional: imprimir o status atual do carro para depuração
-            // printf("Car: Accel: %d, Gear: %d, ABS: %d, Airbag: %d\n", 
-            //         g_current_acceleration, g_current_gear, g_abs_active, g_airbag_deployed);
-
+            // Envia o status atualizado do carro para a fila
+            // Não bloqueia (0 ticks), se a fila estiver cheia, sobrescreve o item antigo
+            xQueueOverwrite(xCarStatusQueue, &current_car_status);
         }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Processa a lógica do carro frequentemente
+        
+        // Atraso para manter a frequência da tarefa
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

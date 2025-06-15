@@ -48,9 +48,9 @@ add_executable(embarcatech-tarefa-freertos-2
         src/joystick_task.c
         src/car_indicators_task.c
         # src/car_status_data.h
-        #src/car_control_task.c
+        src/car_control_task.c
+        src/oled_task.c
         #src/led_matrix_task.c
-        # led_matrix_task.h
 )
 
 # Agora o pico_add_pio_program deve funcionar
@@ -64,6 +64,7 @@ target_include_directories(embarcatech-tarefa-freertos-2 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/oled
 )
 
 # Liga as bibliotecas necessárias
