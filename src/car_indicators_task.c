@@ -1,31 +1,28 @@
-  // car_indicators_task.c
-#include "car_indicators_task.h"
-#include "joystick_task.h" // Para incluir a estrutura joystick_data_t e a fila xJoystickQueue
-
+#include <stdio.h>
 #include "pico/stdlib.h"
-//#include "hardware/pwm.h" // Para o buzzer, se for usar PWM para o ronco
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "joystick_task.h"
 
-// Definição dos pinos dos LEDs RGB
+// Pinos dos LEDs RGB
 #define LED_RED_PIN     13
 #define LED_GREEN_PIN   11
 #define LED_BLUE_PIN    12
-// Definição do pino do Buzzer (exemplo)
-#define BUZZER_PIN      10 
+#define BUZZER_PIN      10
 
-// Thresholds para ativar os LEDs de aceleração/frenagem
-#define ACCELERATION_THRESHOLD  500
-#define BRAKE_THRESHOLD         -500
+// Thresholds
+#define ACCELERATION_THRESHOLD  200
+#define BRAKE_THRESHOLD         -200
 
-// Funções auxiliares para controlar os LEDs e Buzzer
+extern QueueHandle_t xJoystickQueue;
+
 void set_led(uint gpio_pin, bool state) {
     gpio_put(gpio_pin, state);
 }
 
-// Inicia o buzzer com uma frequência simples para teste
 void buzzer_on() {
-    // Para um simples "on/off" do buzzer, basta ligar/desligar o GPIO
-    // Se for um buzzer passivo e precisar de PWM, a lógica seria mais complexa aqui
-    gpio_put(BUZZER_PIN, 1); 
+    gpio_put(BUZZER_PIN, 1);
 }
 
 void buzzer_off() {
@@ -33,56 +30,75 @@ void buzzer_off() {
 }
 
 void vCarIndicatorsTask(void *pvParameters) {
-    joystick_data_t current_joystick_data;
+    printf("CarIndicatorsTask: Iniciada\n");
 
-    // Inicialização dos GPIOs dos LEDs
+    // Inicializa LEDs e buzzer
     gpio_init(LED_RED_PIN);
     gpio_set_dir(LED_RED_PIN, GPIO_OUT);
+    gpio_put(LED_RED_PIN, 0); // Garante estado inicial baixo
     gpio_init(LED_GREEN_PIN);
     gpio_set_dir(LED_GREEN_PIN, GPIO_OUT);
+    gpio_put(LED_GREEN_PIN, 0);
     gpio_init(LED_BLUE_PIN);
     gpio_set_dir(LED_BLUE_PIN, GPIO_OUT);
-
-    // Inicialização do GPIO do Buzzer
+    gpio_put(LED_BLUE_PIN, 0);
     gpio_init(BUZZER_PIN);
     gpio_set_dir(BUZZER_PIN, GPIO_OUT);
-    // Assegura que o buzzer está desligado no início
-    buzzer_off(); 
+    gpio_put(BUZZER_PIN, 0);
+
+    // Teste inicial: Piscar LEDs para confirmar funcionamento
+    printf("CarIndicatorsTask: Testando LEDs...\n");
+    set_led(LED_RED_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    set_led(LED_RED_PIN, 0);
+    set_led(LED_GREEN_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    set_led(LED_GREEN_PIN, 0);
+    set_led(LED_BLUE_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    set_led(LED_BLUE_PIN, 0);
+    buzzer_on();
+    vTaskDelay(pdMS_TO_TICKS(500));
+    buzzer_off();
+    printf("CarIndicatorsTask: Teste concluído\n");
+
+    joystick_data_t current_joystick_data;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(20);
 
     while (true) {
-        // Tenta receber os dados mais recentes do joystick da fila
-        // Espera no máximo 100ms por novos dados. Se não houver, continua
-        // para não bloquear indefinidamente.
-        if (xQueueReceive(xJoystickQueue, &current_joystick_data, pdMS_TO_TICKS(100)) == pdPASS) {
-            // Lógica para Aceleração/Frenagem (LED Verde/Vermelho)
+        if (xQueuePeek(xJoystickQueue, &current_joystick_data, 0) == pdPASS) {
+            // Depuração
+            printf("CarIndicatorsTask: Y=%d, SW=%d\n", 
+                   current_joystick_data.y_axis, current_joystick_data.sw_state);
+
+            // LEDs para aceleração/freio
             if (current_joystick_data.y_axis > ACCELERATION_THRESHOLD) {
-                // Acelerando
-                set_led(LED_GREEN_PIN, true);
-                set_led(LED_RED_PIN, false); // Garante que o vermelho está desligado
+                set_led(LED_GREEN_PIN, 1);
+                set_led(LED_RED_PIN, 0);
+                printf("CarIndicatorsTask: LED Verde ON\n");
             } else if (current_joystick_data.y_axis < BRAKE_THRESHOLD) {
-                // Freando
-                set_led(LED_RED_PIN, true);
-                set_led(LED_GREEN_PIN, false); // Garante que o verde está desligado
+                set_led(LED_RED_PIN, 1);
+                set_led(LED_GREEN_PIN, 0);
+                printf("CarIndicatorsTask: LED Vermelho ON\n");
             } else {
-                // Joystick no centro ou dentro dos thresholds de inatividade
-                set_led(LED_GREEN_PIN, false);
-                set_led(LED_RED_PIN, false);
+                set_led(LED_GREEN_PIN, 0);
+                set_led(LED_RED_PIN, 0);
             }
 
-            // Lógica para Buzina (LED Azul e Buzzer)
-            // A lógica do botão SW é invertida porque ele está com pull-up.
-            // Se o botão for pressionado, gpio_get() retorna 0, então !gpio_get() é 1.
-            if (current_joystick_data.sw_state) { // Se o botão SW foi pressionado
-                set_led(LED_BLUE_PIN, true);
+            // LED azul e buzzer para buzina (botão SW)
+            if (current_joystick_data.sw_state) {
+                set_led(LED_BLUE_PIN, 1);
                 buzzer_on();
+                printf("CarIndicatorsTask: LED Azul ON, Buzzer ON\n");
             } else {
-                set_led(LED_BLUE_PIN, false);
+                set_led(LED_BLUE_PIN, 0);
                 buzzer_off();
             }
+        } else {
+            printf("CarIndicatorsTask: Falha ao ler fila\n");
         }
-        
-        // Pequeno atraso para a tarefa não consumir 100% da CPU.
-        // Já há um atraso na tarefa do joystick, mas este é para o ciclo de atualização dos LEDs.
-        vTaskDelay(pdMS_TO_TICKS(20)); 
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

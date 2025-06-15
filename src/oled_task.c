@@ -14,22 +14,18 @@
 // A fila do status do carro será acessada globalmente via extern
 extern QueueHandle_t xCarStatusQueue;
 
-// Note: As definições de pinos e a instância do display (ssd1306_t)
-// são gerenciadas internamente pelo seu driver ssd1306.c.
-// Não precisamos delas aqui em oled_task.c, apenas chamar as funções.
-
 void vOledTask(void *pvParameters) {
     car_status_t received_car_status;
 
-    // A inicialização completa do I2C e do display SSD1306 (incluindo poweron)
-    // é feita internamente pela função ssd1306_init() do seu driver.
-    ssd1306_init(); // <-- CHAMADA SIMPLIFICADA!
-
-    // Garante que o display está limpo no início
+    ssd1306_init(); // Inicialização completa pelo seu driver
     ssd1306_clear();
     ssd1306_show();
 
-    char speed_str[20]; // Buffer para formatar a string de velocidade
+    char line1_str[20]; // Velocidade
+    char line2_str[20]; // RPM
+    char line3_str[20]; // Marcha
+    char line4_str[20]; // ABS
+    char line5_str[20]; // Airbag
 
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = pdMS_TO_TICKS(100); // Atualiza o OLED a cada 100ms
@@ -37,24 +33,37 @@ void vOledTask(void *pvParameters) {
 
     while (true) {
         // Tenta receber o status mais recente do carro
-        // Espera no máximo 'xFrequency' ticks. Se não houver, usa os últimos dados.
         if (xQueueReceive(xCarStatusQueue, &received_car_status, xFrequency) == pdPASS) {
-            // Limpa o buffer do OLED
-            ssd1306_clear();
+            ssd1306_clear(); // Limpa o buffer do OLED
 
-            // Formata a string de velocidade
-            // Usamos current_acceleration para a velocidade, como definido antes
-            snprintf(speed_str, sizeof(speed_str), "Speed: %d Km/h", received_car_status.current_acceleration);
-            
-            // Escreve a string na primeira linha do OLED (coluna 0, linha 0)
-            // Note: Seu driver não usa o argumento de escala.
-            ssd1306_draw_string(0, 0, speed_str); // <-- CHAMADA SIMPLIFICADA!
+            // --- Linha 1: Velocidade ---
+            snprintf(line1_str, sizeof(line1_str), "Speed: %3d Km/h", received_car_status.current_speed_kmh);
+            ssd1306_draw_string(0, 0, line1_str); // x=0, y=0 (1ª linha)
+
+            // --- Linha 2: RPM ---
+            snprintf(line2_str, sizeof(line2_str), "RPM: %5d", received_car_status.current_rpm);
+            ssd1306_draw_string(0, 8, line2_str); // x=0, y=8 (2ª linha)
+
+            // --- Linha 3: Marcha ---
+            if (received_car_status.current_gear == 0) {
+                snprintf(line3_str, sizeof(line3_str), "Gear: N");
+            } else {
+                snprintf(line3_str, sizeof(line3_str), "Gear: %d", received_car_status.current_gear);
+            }
+            ssd1306_draw_string(0, 16, line3_str); // x=0, y=16 (3ª linha)
+
+            // --- Linha 4: ABS ---
+            snprintf(line4_str, sizeof(line4_str), "ABS: %s", received_car_status.abs_active ? "Active" : "Inactive");
+            ssd1306_draw_string(0, 24, line4_str); // x=0, y=24 (4ª linha)
+
+            // --- Linha 5: Airbag ---
+            snprintf(line5_str, sizeof(line5_str), "Airbag: %s", received_car_status.airbag_deployed ? "Deployed" : "OK");
+            ssd1306_draw_string(0, 32, line5_str); // x=0, y=32 (5ª linha)
 
             // Atualiza o display com o buffer
-            ssd1306_show(); // <-- CHAMADA SIMPLIFICADA!
+            ssd1306_show();
         }
         
-        // Atraso para manter a frequência da tarefa
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }

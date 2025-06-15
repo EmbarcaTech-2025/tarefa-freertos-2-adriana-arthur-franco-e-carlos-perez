@@ -1,85 +1,117 @@
-// src/car_control_task.c
-#include <stdio.h> // Para debug, pode ser removido depois
+#include <stdio.h>
 #include "pico/stdlib.h"
-
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "car_status_data.h"
+#include "joystick_task.h"
 
-#include "car_status_data.h" // Para a estrutura car_status_t
-#include "joystick_task.h"    // Para a estrutura joystick_data_t e a fila xJoystickQueue
-
-// As filas serão criadas em main.c e acessadas globalmente via extern
 extern QueueHandle_t xJoystickQueue;
 extern QueueHandle_t xCarStatusQueue;
 
-// Constantes para cálculo de velocidade
-#define MAX_SPEED_KMH           100    // Velocidade máxima em Km/h
-#define JOYSTICK_MAX_ABS_VAL    2048   // Valor máximo absoluto do joystick (aprox. 2047 do centro)
-#define NEUTRAL_THRESHOLD_JOY   100    // Valores do joystick +/- esta faixa são considerados neutros
+#define MAX_SPEED_KMH           150
+#define JOYSTICK_MAX_ABS_VAL    2048
+#define NEUTRAL_THRESHOLD_JOY   100
+#define ACCELERATION_RATE       0.20f
+#define BRAKE_RATE              0.25f
+#define DRAG_RATE               0.01f
+#define MIN_RPM                 900
+#define MAX_RPM                 6500
+#define RPM_PER_KMH             35
+#define GEAR_1_MAX_SPEED        20
+#define GEAR_2_MAX_SPEED        40
+#define GEAR_3_MAX_SPEED        70
+#define GEAR_4_MAX_SPEED        100
+#define GEAR_5_MAX_SPEED        150
 
-// Fatores de simulação (ajuste estes valores para o comportamento desejado)
-// Quanto maior o fator, mais rápido o carro acelera/freia/desacelera
-#define ACCELERATION_RATE       0.05f  // Taxa de aceleração por tick (ajustar!)
-#define BRAKE_RATE              0.08f  // Taxa de frenagem por tick (ajustar!)
-#define DRAG_RATE               0.02f  // Taxa de desaceleração natural (arrasto) por tick (ajustar!)
-
-// Variável estática para manter a velocidade atual
-static float current_speed_float = 0.0f; // Usamos float para cálculos mais suaves
+static float current_speed_float = 0.0f;
+static bool airbag_was_deployed_once = false;
 
 void vCarControlTask(void *pvParameters) {
+    printf("CarControlTask: Iniciada\n");
+
     joystick_data_t received_joystick_data;
     car_status_t current_car_status;
 
-    // Inicializa o status do carro (valores padrão)
-    current_car_status.current_acceleration = 0; // Usaremos este campo para a velocidade (Km/h)
-    current_car_status.current_gear = 0;         // Começa em Neutro
-    current_car_status.abs_active = false;       // ABS inativo
-    current_car_status.airbag_deployed = false;  // Airbag não acionado
+    current_car_status.current_speed_kmh = 0;
+    current_car_status.current_rpm = MIN_RPM;
+    current_car_status.current_gear = 0;
+    current_car_status.abs_active = false;
+    current_car_status.airbag_deployed = airbag_was_deployed_once;
+    current_car_status.horn_active = false;
 
-    // Para controlar a frequência da tarefa
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(50); // Atualiza a cada 50ms
-    xLastWakeTime = xTaskGetTickCount();
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(50);
 
     while (true) {
-        // Tenta receber os dados mais recentes do joystick da fila
-        // Não bloqueia (0 tick), se não houver dados, usa os últimos conhecidos
         if (xQueueReceive(xJoystickQueue, &received_joystick_data, 0) == pdPASS) {
             int16_t joystick_y = received_joystick_data.y_axis;
 
-            // Lógica de simulação de velocidade
-            if (joystick_y > NEUTRAL_THRESHOLD_JOY) { // Acelerando
-                // Mapeia o valor do joystick para um fator de aceleração
+            // Lógica de velocidade
+            if (joystick_y > NEUTRAL_THRESHOLD_JOY) {
                 float accel_input = (float)(joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
-                current_speed_float += accel_input * ACCELERATION_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Ajusta pela frequência
-            } else if (joystick_y < -NEUTRAL_THRESHOLD_JOY) { // Freando
-                // Mapeia o valor do joystick para um fator de frenagem
+                current_speed_float += accel_input * ACCELERATION_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+            } else if (joystick_y < -NEUTRAL_THRESHOLD_JOY) {
                 float brake_input = (float)(-joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
-                current_speed_float -= brake_input * BRAKE_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Ajusta pela frequência
-            } else { // Joystick na zona neutra, aplica arrasto (drag)
-                current_speed_float -= DRAG_RATE * (float)xFrequency / pdMS_TO_TICKS(1); // Desacelera naturalmente
+                current_speed_float -= brake_input * BRAKE_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+                if (current_speed_float < 0.0f) current_speed_float = 0.0f;
+            } else {
+                current_speed_float -= DRAG_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+                if (current_speed_float < 0.0f) current_speed_float = 0.0f;
             }
 
-            // Garante que a velocidade não seja negativa
-            if (current_speed_float < 0.0f) {
-                current_speed_float = 0.0f;
+            if (current_speed_float > MAX_SPEED_KMH) current_speed_float = MAX_SPEED_KMH;
+
+            // Lógica de RPM
+            int16_t calculated_rpm;
+            if (current_speed_float == 0 && joystick_y <= NEUTRAL_THRESHOLD_JOY) {
+                calculated_rpm = MIN_RPM;
+            } else if (current_speed_float > 0) {
+                calculated_rpm = (int16_t)(MIN_RPM + (current_speed_float * RPM_PER_KMH));
+                if (calculated_rpm > MAX_RPM) calculated_rpm = MAX_RPM;
+            } else {
+                calculated_rpm = MIN_RPM + (int16_t)(((float)joystick_y / JOYSTICK_MAX_ABS_VAL) * (MAX_RPM - MIN_RPM));
+                if (calculated_rpm > MAX_RPM) calculated_rpm = MAX_RPM;
+                if (calculated_rpm < MIN_RPM) calculated_rpm = MIN_RPM;
             }
 
-            // Garante que a velocidade não exceda o máximo
-            if (current_speed_float > MAX_SPEED_KMH) {
-                current_speed_float = MAX_SPEED_KMH;
+            // Lógica de marcha
+            int8_t calculated_gear;
+            if (current_speed_float == 0) {
+                calculated_gear = 0;
+            } else if (current_speed_float <= GEAR_1_MAX_SPEED) {
+                calculated_gear = 1;
+            } else if (current_speed_float <= GEAR_2_MAX_SPEED) {
+                calculated_gear = 2;
+            } else if (current_speed_float <= GEAR_3_MAX_SPEED) {
+                calculated_gear = 3;
+            } else if (current_speed_float <= GEAR_4_MAX_SPEED) {
+                calculated_gear = 4;
+            } else {
+                calculated_gear = 5;
             }
 
-            // Atualiza a estrutura de status do carro
-            current_car_status.current_acceleration = (int16_t)current_speed_float; // Usamos este campo para velocidade em Km/h
+            // Lógica de ABS (botão A)
+            current_car_status.abs_active = received_joystick_data.button_A_state && (current_speed_float > 0);
 
-            // Envia o status atualizado do carro para a fila
-            // Não bloqueia (0 ticks), se a fila estiver cheia, sobrescreve o item antigo
+            // Lógica de Airbag (botão B)
+            if (received_joystick_data.button_B_state && !airbag_was_deployed_once) {
+                airbag_was_deployed_once = true;
+            }
+            current_car_status.airbag_deployed = airbag_was_deployed_once;
+
+            // Lógica de buzina (botão SW)
+            current_car_status.horn_active = received_joystick_data.sw_state;
+
+            // Atualiza status do carro
+            current_car_status.current_speed_kmh = (int16_t)current_speed_float;
+            current_car_status.current_rpm = calculated_rpm;
+            current_car_status.current_gear = calculated_gear;
+
+            // Envia status para a fila
             xQueueOverwrite(xCarStatusQueue, &current_car_status);
         }
-        
-        // Atraso para manter a frequência da tarefa
+
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
