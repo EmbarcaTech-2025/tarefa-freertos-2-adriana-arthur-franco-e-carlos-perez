@@ -40,7 +40,7 @@ void vMonitorJoystickTask(void *pvParameters) {
 
 int main() {
     stdio_init_all();
-    sleep_ms(5000);
+    sleep_ms(2000);
     printf("Main: Inicializando sistema...\n");
 
     // Teste inicial do OLED
