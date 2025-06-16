@@ -52,8 +52,8 @@ int main() {
     ssd1306_clear();
     ssd1306_show();
 
-    xJoystickQueue = xQueueCreate(1, sizeof(joystick_data_t));
-    xCarStatusQueue = xQueueCreate(1, sizeof(car_status_t));
+    xJoystickQueue = xQueueCreate(5, sizeof(joystick_data_t));
+    xCarStatusQueue = xQueueCreate(5, sizeof(car_status_t));
 
     configASSERT(xJoystickQueue);
     configASSERT(xCarStatusQueue);
