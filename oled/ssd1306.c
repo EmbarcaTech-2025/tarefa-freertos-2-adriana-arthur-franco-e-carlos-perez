@@ -15,7 +15,8 @@
 #define SSD1306_SCL_PIN 15
 #define SSD1306_BUF_LEN (SSD1306_WIDTH * SSD1306_HEIGHT / 8)
 
-static uint8_t framebuffer[SSD1306_BUF_LEN];
+static uint8_t framebuffer[SSD1306_BUF_LEN]; // buffer estático (ideal para RTOS) da tela toda
+static uint8_t tx_buffer[SSD1306_WIDTH + 1]; // buffer estático (idem) de uma página para ssd1306_write_data()
 
 // Fonte 8x8 - o bit mais significativo do byte representa o pixel mais à esquerda
 // e cada byte representa uma linha horizontal
@@ -127,12 +128,15 @@ static void ssd1306_write_cmd(uint8_t cmd) {
 
 // Envia os dados aos display. É chamada pela função ssd1306_show()
 static void ssd1306_write_data(const uint8_t *data, size_t len) {
-    uint8_t *buf = malloc(len + 1);
-    buf[0] = 0x40;
-    memcpy(&buf[1], data, len);
-    i2c_write_blocking(SSD1306_I2C, SSD1306_I2C_ADDR, buf, len + 1, false);
-    free(buf);
+    // Verifica se o buffer estático é grande o suficiente
+    if (len + 1 > sizeof(tx_buffer)) {
+        return;
+    }
+    tx_buffer[0] = 0x40;
+    memcpy(&tx_buffer[1], data, len);
+    i2c_write_blocking(SSD1306_I2C, SSD1306_I2C_ADDR, tx_buffer, len + 1, false);
 }
+
 // Inicializa o display e o barramento I2C
 void ssd1306_init(void) {
     i2c_init(SSD1306_I2C, 400 * 1000);
