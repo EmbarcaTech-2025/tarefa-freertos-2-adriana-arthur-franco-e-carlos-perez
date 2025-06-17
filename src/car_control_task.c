@@ -12,11 +12,11 @@ extern QueueHandle_t xCarStatusQueue;
 #define MAX_SPEED_KMH           150
 #define JOYSTICK_MAX_ABS_VAL    2048
 #define NEUTRAL_THRESHOLD_JOY   100
-#define ACCELERATION_RATE       0.20f
-#define BRAKE_RATE              0.25f
-#define DRAG_RATE               0.01f
+#define ACCELERATION_RATE       0.10f
+#define BRAKE_RATE              0.3f
+#define DRAG_RATE               0.015f
 #define MIN_RPM                 900
-#define MAX_RPM                 6500
+#define MAX_RPM                 5500
 #define RPM_PER_KMH             35
 #define GEAR_1_MAX_SPEED        20
 #define GEAR_2_MAX_SPEED        40
