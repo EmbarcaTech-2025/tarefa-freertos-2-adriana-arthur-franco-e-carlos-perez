@@ -4,6 +4,7 @@
 #include "task.h"
 #include "queue.h"
 #include "joystick_task.h"
+#include "car_status_data.h"
 
 // Pinos dos LEDs RGB
 #define LED_RED_PIN     13
@@ -16,6 +17,7 @@
 #define BRAKE_THRESHOLD         -200
 
 extern QueueHandle_t xJoystickQueue;
+extern QueueHandle_t xCarStatusQueue;
 
 void set_led(uint gpio_pin, bool state) {
     gpio_put(gpio_pin, state);
@@ -63,27 +65,34 @@ void vCarIndicatorsTask(void *pvParameters) {
     printf("CarIndicatorsTask: Teste concluído\n");
 
     joystick_data_t current_joystick_data;
+    car_status_t current_car_status;
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(20);
 
     while (true) {
-        if (xQueuePeek(xJoystickQueue, &current_joystick_data, 0) == pdPASS) {
+        if (xQueuePeek(xJoystickQueue, &current_joystick_data, 0) == pdPASS &&
+            xQueuePeek(xCarStatusQueue, &current_car_status, 0) == pdPASS) {
             // Depuração
             printf("CarIndicatorsTask: Y=%d, SW=%d\n", 
                    current_joystick_data.y_axis, current_joystick_data.sw_state);
 
-            // LEDs para aceleração/freio
-            if (current_joystick_data.y_axis > ACCELERATION_THRESHOLD) {
-                set_led(LED_GREEN_PIN, 1);
-                set_led(LED_RED_PIN, 0);
-                printf("CarIndicatorsTask: LED Verde ON\n");
-            } else if (current_joystick_data.y_axis < BRAKE_THRESHOLD) {
+            // LED vermelho: ligado durante ABS ou freio normal
+            if (current_car_status.red_led_active || 
+                (!current_car_status.red_led_active && current_joystick_data.y_axis < BRAKE_THRESHOLD)) {
                 set_led(LED_RED_PIN, 1);
-                set_led(LED_GREEN_PIN, 0);
-                printf("CarIndicatorsTask: LED Vermelho ON\n");
+                if (!current_car_status.red_led_active) {
+                    printf("CarIndicatorsTask: LED Vermelho ON (freio)\n");
+                }
+            } else {
+                set_led(LED_RED_PIN, 0);
+            }
+
+            // LED verde: ligado apenas durante aceleração e se ABS não estiver ativo
+            if (!current_car_status.red_led_active && current_joystick_data.y_axis > ACCELERATION_THRESHOLD) {
+                set_led(LED_GREEN_PIN, 1);
+                printf("CarIndicatorsTask: LED Verde ON\n");
             } else {
                 set_led(LED_GREEN_PIN, 0);
-                set_led(LED_RED_PIN, 0);
             }
 
             // LED azul e buzzer para buzina (botão SW)

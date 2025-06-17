@@ -39,6 +39,7 @@ void vCarControlTask(void *pvParameters) {
     current_car_status.abs_active = false;
     current_car_status.airbag_deployed = airbag_was_deployed_once;
     current_car_status.horn_active = false;
+    current_car_status.red_led_active = false;
 
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(50);
@@ -47,20 +48,30 @@ void vCarControlTask(void *pvParameters) {
         if (xQueueReceive(xJoystickQueue, &received_joystick_data, 0) == pdPASS) {
             int16_t joystick_y = received_joystick_data.y_axis;
 
-            // Lógica de velocidade
-            if (joystick_y > NEUTRAL_THRESHOLD_JOY) {
-                float accel_input = (float)(joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
-                current_speed_float += accel_input * ACCELERATION_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
-            } else if (joystick_y < -NEUTRAL_THRESHOLD_JOY) {
-                float brake_input = (float)(-joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
-                current_speed_float -= brake_input * BRAKE_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
-                if (current_speed_float < 0.0f) current_speed_float = 0.0f;
+            // Lógica de ABS (botão A)
+            if (received_joystick_data.button_A_state) {
+                current_speed_float = 0.0f; // Para imediatamente
+                current_car_status.abs_active = true;
+                current_car_status.red_led_active = true;
             } else {
-                current_speed_float -= DRAG_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
-                if (current_speed_float < 0.0f) current_speed_float = 0.0f;
-            }
+                current_car_status.abs_active = false;
+                current_car_status.red_led_active = false;
 
-            if (current_speed_float > MAX_SPEED_KMH) current_speed_float = MAX_SPEED_KMH;
+                // Lógica de velocidade (apenas se ABS não estiver ativo)
+                if (joystick_y > NEUTRAL_THRESHOLD_JOY) {
+                    float accel_input = (float)(joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
+                    current_speed_float += accel_input * ACCELERATION_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+                } else if (joystick_y < -NEUTRAL_THRESHOLD_JOY) {
+                    float brake_input = (float)(-joystick_y - NEUTRAL_THRESHOLD_JOY) / (JOYSTICK_MAX_ABS_VAL - NEUTRAL_THRESHOLD_JOY);
+                    current_speed_float -= brake_input * BRAKE_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+                    if (current_speed_float < 0.0f) current_speed_float = 0.0f;
+                } else {
+                    current_speed_float -= DRAG_RATE * (float)xFrequency / pdMS_TO_TICKS(1);
+                    if (current_speed_float < 0.0f) current_speed_float = 0.0f;
+                }
+
+                if (current_speed_float > MAX_SPEED_KMH) current_speed_float = MAX_SPEED_KMH;
+            }
 
             // Lógica de RPM
             int16_t calculated_rpm;
@@ -90,9 +101,6 @@ void vCarControlTask(void *pvParameters) {
             } else {
                 calculated_gear = 5;
             }
-
-            // Lógica de ABS (botão A)
-            current_car_status.abs_active = received_joystick_data.button_A_state && (current_speed_float > 0);
 
             // Lógica de Airbag (botão B)
             if (received_joystick_data.button_B_state && !airbag_was_deployed_once) {
