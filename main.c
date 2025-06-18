@@ -32,7 +32,8 @@ void vMonitorJoystickTask(void *pvParameters) {
                    received_car_status.current_gear,
                    received_car_status.abs_active,
                    received_car_status.airbag_deployed,
-                   received_car_status.horn_active);
+                   received_car_status.horn_active,
+                   received_car_status.red_led_active);
         }
         vTaskDelay(pdMS_TO_TICKS(500)); // Imprime a cada 500ms
     }

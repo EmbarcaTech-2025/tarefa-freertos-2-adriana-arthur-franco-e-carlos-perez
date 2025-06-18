@@ -1,4 +1,3 @@
-
 # Tarefa: Roteiro de FreeRTOS #2 - EmbarcaTech 2025
 
 Autor:  **Adriana Paula**  
