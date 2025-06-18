@@ -10,7 +10,7 @@
 #define LED_RED_PIN     13
 #define LED_GREEN_PIN   11
 #define LED_BLUE_PIN    12
-#define BUZZER_PIN      10
+#define BUZZER_PIN      21
 
 // Thresholds
 #define ACCELERATION_THRESHOLD  200

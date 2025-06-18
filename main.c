@@ -7,6 +7,7 @@
 #include "car_indicators_task.h"
 #include "car_control_task.h"
 #include "car_status_data.h"
+#include "engine_sound_task.h"
 #include "oled_task.h"
 #include "ssd1306.h"
 
@@ -64,6 +65,7 @@ int main() {
     xTaskCreate(vCarIndicatorsTask, "CarIndicatorsTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, NULL);
     xTaskCreate(vOledTask, "OledTask", configMINIMAL_STACK_SIZE + 200, NULL, tskIDLE_PRIORITY + 1, NULL);
     xTaskCreate(vMonitorJoystickTask, "MonitorJoystickTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vEngineSoundTask, "EngineSoundTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 0, NULL);
 
     vTaskStartScheduler();
 

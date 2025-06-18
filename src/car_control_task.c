@@ -17,7 +17,7 @@ extern QueueHandle_t xCarStatusQueue;
 #define DRAG_RATE               0.015f
 #define MIN_RPM                 900
 #define MAX_RPM                 5500
-#define RPM_PER_KMH             35
+#define RPM_PER_KMH             36
 #define GEAR_1_MAX_SPEED        20
 #define GEAR_2_MAX_SPEED        40
 #define GEAR_3_MAX_SPEED        70
@@ -32,6 +32,7 @@ void vCarControlTask(void *pvParameters) {
 
     joystick_data_t received_joystick_data;
     car_status_t current_car_status;
+    int16_t calculated_rpm;
 
     current_car_status.current_speed_kmh = 0;
     current_car_status.current_rpm = MIN_RPM;
@@ -73,21 +74,10 @@ void vCarControlTask(void *pvParameters) {
                 if (current_speed_float > MAX_SPEED_KMH) current_speed_float = MAX_SPEED_KMH;
             }
 
-            // Lógica de RPM
-            int16_t calculated_rpm;
-            if (current_speed_float == 0 && joystick_y <= NEUTRAL_THRESHOLD_JOY) {
-                calculated_rpm = MIN_RPM;
-            } else if (current_speed_float > 0) {
-                calculated_rpm = (int16_t)(MIN_RPM + (current_speed_float * RPM_PER_KMH));
-                if (calculated_rpm > MAX_RPM) calculated_rpm = MAX_RPM;
-            } else {
-                calculated_rpm = MIN_RPM + (int16_t)(((float)joystick_y / JOYSTICK_MAX_ABS_VAL) * (MAX_RPM - MIN_RPM));
-                if (calculated_rpm > MAX_RPM) calculated_rpm = MAX_RPM;
-                if (calculated_rpm < MIN_RPM) calculated_rpm = MIN_RPM;
-            }
-
-            // Lógica de marcha
+            /// Cálculo de marcha
+            int8_t previous_gear = current_car_status.current_gear;
             int8_t calculated_gear;
+
             if (current_speed_float == 0) {
                 calculated_gear = 0;
             } else if (current_speed_float <= GEAR_1_MAX_SPEED) {
@@ -101,6 +91,36 @@ void vCarControlTask(void *pvParameters) {
             } else {
                 calculated_gear = 5;
             }
+
+            // Detecta troca de marcha
+            bool gear_changed = (calculated_gear != previous_gear);
+
+            // Simula tempo de engate e corte de aceleração
+            if (gear_changed && previous_gear != 0) {
+                // Engate: brevíssimo delay
+                vTaskDelay(pdMS_TO_TICKS(100));
+
+                // Cut de aceleração: RPM quase zero momentaneamente
+                current_car_status.current_rpm = MIN_RPM;
+                xQueueOverwrite(xCarStatusQueue, &current_car_status);
+                vTaskDelay(pdMS_TO_TICKS(50)); // Simula corte breve
+            }
+
+            // Atualiza a marcha após simulação
+            current_car_status.current_gear = calculated_gear;
+
+            // Novo cálculo de RPM baseado na marcha
+            float gear_ratio[] = {0.0f, 5.0f, 4.0f, 3.0f, 2.2f, 1.6f}; // N, 1 a 5
+
+            if (calculated_gear > 0) {
+                calculated_rpm = MIN_RPM + (int)(current_speed_float * gear_ratio[calculated_gear]);
+                if (calculated_rpm > MAX_RPM) calculated_rpm = MAX_RPM;
+            } else {
+                calculated_rpm = MIN_RPM;
+            }
+
+            current_car_status.current_rpm = calculated_rpm;
+
 
             // Lógica de Airbag (botão B)
             if (received_joystick_data.button_B_state && !airbag_was_deployed_once) {

@@ -51,6 +51,7 @@ add_executable(embarcatech-tarefa-freertos-2
         src/car_control_task.c
         src/oled_task.c
         #src/led_matrix_task.c
+        src/engine_sound_task.c
 )
 
 # Agora o pico_add_pio_program deve funcionar
@@ -72,6 +73,7 @@ target_link_libraries(embarcatech-tarefa-freertos-2
     pico_stdlib
     hardware_i2c
     hardware_adc
+    hardware_pwm
     #hardware_pio
     #hardware_clocks
     FreeRTOS-Kernel-Heap4
