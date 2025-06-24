@@ -67,7 +67,7 @@ void vCarIndicatorsTask(void *pvParameters) {
     joystick_data_t current_joystick_data;
     car_status_t current_car_status;
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(70);
+    const TickType_t xFrequency = pdMS_TO_TICKS(20);
 
     while (true) {
         if (xQueuePeek(xJoystickQueue, &current_joystick_data, 0) == pdPASS &&

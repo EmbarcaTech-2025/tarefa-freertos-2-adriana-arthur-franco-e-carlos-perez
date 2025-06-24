@@ -98,7 +98,7 @@ void vCarControlTask(void *pvParameters) {
             // Simula tempo de engate e corte de aceleração
             if (gear_changed && previous_gear != 0) {
                 // Engate: brevíssimo delay
-                vTaskDelay(pdMS_TO_TICKS(200));
+                vTaskDelay(pdMS_TO_TICKS(100));
 
                 // Cut de aceleração: RPM quase zero momentaneamente
                 current_car_status.current_rpm = MIN_RPM;

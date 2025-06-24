@@ -53,8 +53,8 @@ add_executable(embarcatech-tarefa-freertos-2
         src/engine_sound_task.c
 )
 
-# Agora o pico_add_pio_program deve funcionar
-# pico_add_pio_program(embarcatech-tarefa-freertos-2 ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
+# Generate PIO header
+pico_generate_pio_header(embarcatech-tarefa-freertos-2 ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
 
 # Ativa USB
 pico_enable_stdio_usb(embarcatech-tarefa-freertos-2 1)

@@ -10,6 +10,13 @@
 #include "engine_sound_task.h"
 #include "oled_task.h"
 #include "ssd1306.h"
+#include "hardware/pio.h"
+#include "hardware/clocks.h"
+#include "led_matrix.h"
+#include "injector_task.h"
+
+// Biblioteca gerada pelo arquivo .pio durante compilação.
+//#include "ws2818b.pio.h"
 
 QueueHandle_t xJoystickQueue;
 QueueHandle_t xCarStatusQueue;
@@ -55,18 +62,23 @@ int main() {
     ssd1306_clear();
     ssd1306_show();
 
+    // Inicializa matriz de LEDs NeoPixel.
+    npInit(LED_PIN);
+    npClear();
+
     xJoystickQueue = xQueueCreate(8, sizeof(joystick_data_t));
     xCarStatusQueue = xQueueCreate(8, sizeof(car_status_t));
 
     configASSERT(xJoystickQueue);
     configASSERT(xCarStatusQueue);
 
-    xTaskCreate(vJoystickTask, "JoystickTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 4, NULL);
-    xTaskCreate(vCarControlTask, "CarControlTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 3, NULL);
-    xTaskCreate(vCarIndicatorsTask, "CarIndicatorsTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
-    xTaskCreate(vOledTask, "OledTask", configMINIMAL_STACK_SIZE + 200, NULL, tskIDLE_PRIORITY + 0, NULL);
-    //xTaskCreate(vMonitorJoystickTask, "MonitorJoystickTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 0, NULL);
-    xTaskCreate(vEngineSoundTask, "EngineSoundTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreate(vJoystickTask, "JoystickTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 5, NULL);
+    xTaskCreate(vCarControlTask, "CarControlTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 4, NULL);
+    xTaskCreate(vCarIndicatorsTask, "CarIndicatorsTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 3, NULL);
+    xTaskCreate(vOledTask, "OledTask", configMINIMAL_STACK_SIZE + 200, NULL, tskIDLE_PRIORITY + 2, NULL);
+    //xTaskCreate(vMonitorJoystickTask, "MonitorJoystickTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vEngineSoundTask, "EngineSoundTask", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 0, NULL);
+    xTaskCreate(vInjectorTask, "InjectorTask", configMINIMAL_STACK_SIZE + 256, NULL, tskIDLE_PRIORITY + 1, NULL);
 
     vTaskStartScheduler();
 
