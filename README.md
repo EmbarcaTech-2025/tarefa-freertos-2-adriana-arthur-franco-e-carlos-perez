@@ -10,6 +10,7 @@ Instituição: EmbarcaTech - HBr
 Campinas, junho de 2025  
 
 ---
+
 # Simulador de automóvel na BitDogLab
 
 ## Introdução
@@ -32,6 +33,7 @@ Segue uma breve descrição de cada módulo:
 - injector_task.c: Implementa a tarefa vInjectorTask, responsável por simular a atuação dos injetores de combustível em um motor, utilizando a matriz de LEDs como visualização. A frequência dos pulsos varia de acordo com o valor de RPM recebido da fila xCarStatusQueue.   
 - led_matrix.c: Implementa o controle da matriz de LEDs WS2812/WS2818b utilizando PIO (Programmable I/O) do Raspberry Pi Pico. Ele fornece funções para inicializar, escrever e configurar cores específicas em cada LED da matriz.  
 
+---
 
 ## Código
 
@@ -1088,12 +1090,12 @@ void entrada_matriz_desl(int posicao_led) {
 }
 ```
 
+---
 
 ## Detalhes da implementação
 
 **Tabela com as prioridades e temporizações das tarefas do projeto:**  
 
-### 🧵 Tarefas do Sistema (FreeRTOS)
 
 | **Tarefa**               | **Função**                         | **Prioridade**         | **Período / Delay**         | **Fonte de Dados**             |
 |--------------------------|------------------------------------|-------------------------|------------------------------|--------------------------------|
@@ -1104,35 +1106,95 @@ void entrada_matriz_desl(int posicao_led) {
 | `vInjectorTask`          | Simulação dos injetores (LEDs)     | `tskIDLE_PRIORITY + 0`  | 10–100 ms (depende do RPM)   | Fila do carro (`Peek`)         |
 | `vOledTask`              | Atualização do display OLED        | `tskIDLE_PRIORITY + 0`  | 100 ms (`vTaskDelayUntil`)   | Fila do carro (`Receive`)      |
 
-
-
-| **Tarefa**           | **Função**            | **Prioridade**         | **Período / Delay**             | **Fonte de Dados**           |
-| -------------------- | --------------------- | ---------------------- | ------------------------------- | ---------------------------- |
-| `vJoystickTask`      | Leitura do joystick   | `tskIDLE_PRIORITY + 4` | 40 ms (`vTaskDelayUntil`)       | Leitura direta dos pinos/ADC |
-| `vCarControlTask`    | Lógica do carro       | `tskIDLE_PRIORITY + 3` | 50 ms (`vTaskDelayUntil`)       | Fila do joystick             |
-| `vCarIndicatorsTask` | LEDs RGB + buzina     | `tskIDLE_PRIORITY + 2` | 20 ms (`vTaskDelayUntil`)       | Fila do carro + joystick     |
-| `vEngineSoundTask`   | PWM do motor (ronco)  | `tskIDLE_PRIORITY + 1` | 50 ms (`vTaskDelay`)            | Fila do carro (`Peek`)       |
-| `vInjectorTask`      | Efeitos na matriz LED | `tskIDLE_PRIORITY + 0` | \~10 ms base + `pulse_interval` | Fila do carro (`Peek`)       |
-| `vOledTask`          | Display OLED          | `tskIDLE_PRIORITY + 0` | 100 ms (`vTaskDelayUntil`)      | Fila do carro (`Receive`)    |
-
----
-
-**Observações:**
+**Observações:**  
 
 * A prioridade mais alta é da tarefa **JoystickTask** já que ela coleta os comandos do usuário.  
 * A tarefa **CarControlTask** vem logo em seguida, para reagir rapidamente aos comandos.  
 * As tarefas **CarIndicatorsTask** e **EngineSoundTask** usam `Peek`, ou seja, não consomem a fila, apenas observam.  
 * A tarefa **InjectorTask** alterna LEDs com um delay variável que depende do RPM (entre 10–100 ms).  
-* O **display OLED** é atualizado com menor frequência (100 ms).
+* O **display OLED** é atualizado com menor frequência (100 ms).  
+
+---
+
+## Glossário 
+
+ADC (Analog-to-Digital Converter): Conversor Analógico-Digital. Um componente que converte um sinal analógico (como a tensão de um joystick) em um valor digital que o microcontrolador pode processar.  
+
+API (Application Programming Interface): Conjunto de definições e protocolos que permitem que softwares se comuniquem uns com os outros. No FreeRTOS, são as funções como xTaskCreate(), xQueueSend(), etc.  
+
+CMake: Uma ferramenta de código aberto usada para gerenciar o processo de compilação de software usando uma abordagem independente de plataforma. Gera makefiles ou outros arquivos de projeto.  
+
+Duty Cycle: Em PWM, é a proporção do tempo em que um sinal está "ligado" (HIGH) em relação ao período total do sinal. Expresso em porcentagem.  
+
+Embedded System (Sistema Embarcado): Um sistema computacional com uma função dedicada dentro de um sistema mecânico ou elétrico maior. Projetado para uma tarefa específica.  
+
+extern: Palavra-chave em C que declara que uma variável ou função é definida em outro arquivo fonte, permitindo que ela seja usada no arquivo atual.  
+
+Framebuffer: Uma área da memória que contém uma representação em pixels do que deve ser exibido na tela. O driver SSD1306 escreve neste buffer e depois o transfere para o display.  
+
+FreeRTOS: Um sistema operacional em tempo real (RTOS) de código aberto para microcontroladores. Ele gerencia as tarefas, filas, semáforos e outros recursos de tempo real.  
+
+GPIO (General Purpose Input/Output): Pinos de entrada/saída de uso geral no microcontrolador que podem ser configurados como entradas ou saídas digitais, ou para funções especiais (I2C, PWM, ADC).  
+
+Heap: Uma área de memória onde programas podem alocar memória dinamicamente em tempo de execução (ex: com malloc() ou xTaskCreate() do FreeRTOS).  
+
+I2C (Inter-Integrated Circuit): Um protocolo de comunicação serial de dois fios (SDA e SCL) amplamente usado para comunicação de curta distância entre componentes, como microcontroladores e displays OLED.  
+
+Kernel: O núcleo de um sistema operacional que gerencia os recursos do sistema e as interações entre hardware e software. No FreeRTOS, é o responsável pelo agendamento das tarefas.  
+
+Mutex (Mutual Exclusion): Um objeto de sincronização usado para proteger recursos compartilhados, garantindo que apenas uma tarefa por vez possa acessá-lo.  
+
+Pico SDK (Software Development Kit): O kit de desenvolvimento de software oficial da Raspberry Pi Foundation para o Raspberry Pi Pico. Fornece bibliotecas e ferramentas para programar o RP2040.  
+
+PIO (Programmable I/O): Um subsistema no RP2040 que permite aos desenvolvedores definir interfaces de hardware personalizadas programando pequenos "state machines".  
+
+PWM (Pulse Width Modulation): Modulação por Largura de Pulso. Uma técnica para controlar a quantidade de energia entregue a uma carga, variando a largura de um pulso digital. Usada para controle de brilho de LEDs, velocidade de motores e geração de áudio.  
+
+Queue (Fila): Um mecanismo de comunicação entre tarefas no FreeRTOS que permite a troca segura de dados. Os dados são enviados para o final da fila e lidos do início (FIFO - First In, First Out).  
+
+Raspberry Pi Pico: Uma placa de microcontrolador pequena, rápida e versátil construída no chip RP2040 da Raspberry Pi.  
+
+README.md: Um arquivo de texto comum em projetos de software que fornece uma visão geral do projeto, instruções de build, uso e outras informações importantes.  
+
+RTOS (Real-Time Operating System): Sistema Operacional em Tempo Real. Um sistema operacional que garante que certas operações serão executadas dentro de prazos definidos.  
+
+Scheduler (Agendador): A parte do kernel do RTOS que decide qual tarefa deve ser executada a qualquer momento, com base em suas prioridades e outros critérios.  
+
+Semáforo: Um objeto de sincronização que pode ser usado para controlar o acesso a recursos ou para sinalizar a ocorrência de eventos entre tarefas.  
+
+SSD1306: Um chip controlador amplamente utilizado em pequenos displays OLED monocromáticos.  
+
+Stack (Pilha): Uma área de memória reservada para cada tarefa onde variáveis locais, parâmetros de função e endereços de retorno são armazenados temporariamente.  
+
+static: Palavra-chave em C que, quando aplicada a variáveis globais ou em escopo de arquivo, garante que elas sejam visíveis apenas dentro do arquivo em que foram definidas. Quando aplicada a variáveis locais dentro de uma função, garante que a variável preserve seu valor entre chamadas da função.  
+
+Task (Tarefa): No FreeRTOS, uma função independente que pode ser executada em concorrência com outras tarefas. Cada tarefa tem sua própria pilha e prioridade.  
+
+Tick: Uma interrupção periódica gerada por um timer do sistema, usada pelo FreeRTOS para manter o controle do tempo e para o agendamento de tarefas.  
+
+Time Slicing (Fatiamento de Tempo): Um modo de operação do scheduler onde tarefas de mesma prioridade compartilham o tempo da CPU, cada uma recebendo uma "fatia" de tempo para executar antes que o scheduler mude para a próxima.  
+
+vTaskDelay() / vTaskDelayUntil(): Funções do FreeRTOS para atrasar (suspender) a execução de uma tarefa por um período de tempo especificado. vTaskDelayUntil é preferível para atrasos periódicos precisos.  
+
+xQueueOverwrite() / xQueuePeek() / xQueueReceive(): Funções do FreeRTOS para interagir com filas. Overwrite substitui o item mais antigo se a fila estiver cheia. Peek lê sem remover. Receive lê e remove.  
+
+---
+
+## Referências 
 
 
+#### 🔹 Raspberry Pi Pico SDK
+- [Getting Started with Raspberry Pi Pico (PDF)](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)  
+- [C/C++ SDK Documentation (PDF)](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf)  
+- [Repositório oficial no GitHub](https://github.com/raspberrypi/pico-sdk)
+
+#### 🔹 FreeRTOS
+- [Documentação oficial do FreeRTOS](https://www.freertos.org/Documentation/RTOS_book.html)  
+- [API Reference – v10.x](https://www.freertos.org/a00106.html)  
+- [Exemplo de uso com Raspberry Pi Pico + FreeRTOS (GitHub)](https://github.com/sekigon-gonnoc/pico-freertos)
 
 
-
-
-
-
-
+---
 
 ## Resultado obtido
 
