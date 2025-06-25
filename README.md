@@ -597,9 +597,9 @@ void vCarIndicatorsTask(void *pvParameters) {
 // Externs para as filas
 extern QueueHandle_t xCarStatusQueue;
 
-// Constantes de RPM (poderiam ser passadas via parâmetros ou definidas em um header compartilhado)
-#define MIN_RPM_ENGINE_SOUND    900 // Replicando de car_control_task.c ou importando
-#define MAX_RPM_ENGINE_SOUND    5500 // Replicando de car_control_task.c ou importando
+// Constantes de RPM
+#define MIN_RPM_ENGINE_SOUND    900
+#define MAX_RPM_ENGINE_SOUND    5500
 
 void vEngineSoundTask(void *pvParameters) {
     printf("EngineSoundTask: Iniciada\n");
@@ -617,7 +617,7 @@ void vEngineSoundTask(void *pvParameters) {
         if (xQueuePeek(xCarStatusQueue, &car_status, 0) == pdPASS) {
             int rpm = car_status.current_rpm;
 
-            // Frequência proporcional ao RPM (ajuste a escala conforme o som desejado)
+            // Frequência proporcional ao RPM
             float freq = rpm / 10.0f;  // ex: 900 RPM → 90 Hz, 5500 RPM → 550 Hz
 
             float clkdiv = 125000000.0f / (freq * PWM_WRAP_VAL);
@@ -626,8 +626,6 @@ void vEngineSoundTask(void *pvParameters) {
 
             pwm_set_clkdiv(slice_num, clkdiv);
             pwm_set_chan_level(slice_num, channel, PWM_WRAP_VAL / 2); // 50% duty
-
-            // Você pode deixar sempre ativo ou desativar se rpm < 1000
         }
 
         vTaskDelay(pdMS_TO_TICKS(50)); // atualiza som a cada 50 ms
@@ -637,11 +635,10 @@ void vEngineSoundTask(void *pvParameters) {
 
 - oled_task.c:  
 ```c
-// src/oled_task.c
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
-#include "oled/ssd1306.h" // Seu driver SSD1306.h
+#include "oled/ssd1306.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
