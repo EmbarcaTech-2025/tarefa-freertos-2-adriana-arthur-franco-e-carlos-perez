@@ -43,14 +43,14 @@ include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_i
 # Adiciona o executável
 add_executable(embarcatech-tarefa-freertos-2
         main.c
-        # ws2818b.pio
         oled/ssd1306.c
         src/joystick_task.c
         src/car_indicators_task.c
         src/car_control_task.c
         src/oled_task.c
-        #src/led_matrix_task.c
         src/engine_sound_task.c
+        src/injector_task.c
+        src/led_matrix.c
 )
 
 # Generate PIO header
@@ -73,8 +73,8 @@ target_link_libraries(embarcatech-tarefa-freertos-2
     hardware_i2c
     hardware_adc
     hardware_pwm
-    #hardware_pio
-    #hardware_clocks
+    hardware_pio
+    hardware_clocks
     FreeRTOS-Kernel-Heap4
 )
 
