@@ -11,27 +11,61 @@ Campinas, junho de 2025
 
 ---
 
-# Simulador de automóvel na BitDogLab
+# Simulador Veicular na BitDogLab
 
-## Introdução
+## Entendendo o projeto Simulador Veicular na BitDogLab
 
-A ideia é construir um sistema simples e modular, com FreeRTOS, que simule um carro automático com acelerador e freio, som de motor, luz para indicar aceleração (verde) e frenagem (vermelha), buzina com led azul e buzzer, indicação no display oled de velocidade, RPM, marcha e atuação do ABS e do airbag. A aceleração e o freio são controlados pelo eixo vertical do joystick, a buzina é controlada pela chave do joystick. O botão A controla o uso do ABS e o botão B controla o disparo do airbag.
+#### **Introdução**
 
-O sistema foi desenvolvido de modo que cada módulo cuide de uma funcionalidade específica e o desafio é estabelecer as prioridades e temporizações de cada funcionalidade para que o funcionamento seja o mais real prossível, sem atrasos ou perda de controle.
+Este projeto consiste no desenvolvimento de um simulador de painel automotivo, implementado na plataforma de hardware **BitDogLab**, que é baseada no microcontrolador Raspberry Pi Pico (RP2040). O objetivo central é simular em tempo real as dinâmicas de um veículo, como aceleração, frenagem, troca de marchas e operação do motor, gerenciando múltiplos periféricos de forma concorrente. Para alcançar a simultaneidade e a responsividade necessárias, o sistema operacional de tempo real (RTOS) **FreeRTOS** é empregado para orquestrar as diversas funcionalidades do software.  
 
-Segue uma breve descrição de cada módulo:
+#### **Plataforma de Hardware: BitDogLab**
 
-- main.c: Inicializa o sistema, cria as filas (xJoystickQueue e xCarStatusQueue) e as tarefas (vJoystickTask, vCarControlTask, vCarIndicatorsTask, vOledTask, vEngineSoundTask e vMonitorJoystickTask). A tarefa de monitoramento é útil para debug.  
-- CMakeLists.txt: Configura o projeto para a Raspberry Pi Pico (RP2040), com suporte ao FreeRTOS, I2C, ADC, PWM e bibliotecas padrão.  
-- joystick_task.c: Lê o joystick (eixo Y para acelerador e freio e o botão SW para buzina) e os botões A (ABS) e B (Airbag), enviando os dados para xJoystickQueue. Usa ADC para o eixo do joystick e GPIO para os botões.  
-- car_control_task.c: Processa os dados do joystick para simular a dinâmica do carro (velocidade, RPM, marchas, ABS, Airbag, buzina) e envia o status para xCarStatusQueue.  
-- car_status_data.h: Define a estrutura car_status_t para armazenar o estado do carro, usado em car_control_task.  
-- car_indicators_task.c: Controla o LED RGB (verde para aceleração, vermelho para freio, azul para buzina) com base nos dados do joystick. O buzzer da buzina está implementado de forma simples (liga/desliga).  
-- engine_sound_task.c: Simula o ronco do motor com PWM.  
-- oled_task.c: Exibe no display OLED informações do carro (velocidade, RPM, marcha, ABS, Airbag) usando a biblioteca ssd1306.c.  
-- ssd1306.c: Driver para o display OLED SSD1306, com funções para inicializar, limpar, desenhar pixels, caracteres e strings.  
-- injector_task.c: Implementa a tarefa vInjectorTask, responsável por simular a atuação dos injetores de combustível em um motor, utilizando a matriz de LEDs como visualização. A frequência dos pulsos varia de acordo com o valor de RPM recebido da fila xCarStatusQueue.   
-- led_matrix.c: Implementa o controle da matriz de LEDs WS2812/WS2818b utilizando PIO (Programmable I/O) do Raspberry Pi Pico. Ele fornece funções para inicializar, escrever e configurar cores específicas em cada LED da matriz.  
+A **BitDogLab** serve como a base física para a simulação, integrando os seguintes componentes essenciais:  
+* **Microcontrolador RP2040:** O núcleo do processamento, responsável por executar todas as tarefas do sistema.  
+* **Joystick Analógico:** Atua como a principal interface de controle do usuário, simulando o acelerador e o freio do veículo.  
+* **Display OLED:** Exibe informações de telemetria em tempo real, como velocidade, RPM e marcha atual.  
+* **LEDs e Buzzer:** Fornecem feedback visual e sonoro para eventos como frenagem (luz de freio) e acionamento da buzina.  
+* **Matriz de LEDs:** Utilizada para a visualização dinâmica da sequência de injeção de combustível do motor.  
+
+#### **Arquitetura de Software e Funcionalidades**
+
+A arquitetura do software é fundamentada no FreeRTOS, que permite a divisão do sistema em tarefas independentes e concorrentes. A comunicação e sincronização entre essas tarefas são realizadas de forma segura e eficiente através de filas (*Queues*). Cada tarefa possui uma responsabilidade única:  
+
+1.  **`vJoystickTask` (Leitura de Controles):**  
+    * **Função:** Realiza a leitura contínua do joystick (eixo analógico e botões).  
+    * **Comunicação:** Envia os dados de estado do controle para uma fila (`xJoystickQueue`), disponibilizando-os para outras tarefas.  
+
+2.  **`vCarControlTask` (Lógica do Veículo):**  
+    * **Função:** Constitui o núcleo da simulação. Recebe os dados do joystick e calcula a física do veículo, atualizando status como velocidade, RPM e marcha. Implementa lógicas para aceleração, frenagem, arrasto e simulação de troca de marchas.  
+    * **Comunicação:** Publica o estado atualizado do veículo (`car_status_t`) em uma fila global (`xCarStatusQueue`).  
+
+3.  **`vCarIndicatorsTask` (Indicadores Visuais e Sonoros):**  
+    * **Função:** Gerencia os LEDs e o buzzer. Acende o LED de freio durante a frenagem, o LED de aceleração e aciona a buzina conforme os comandos do joystick.  
+    * **Comunicação:** Lê (sem remover) os dados das filas de status do carro e do joystick para reagir em tempo real aos eventos.  
+
+4.  **`vEngineSoundTask` (Simulação Sonora do Motor):**  
+    * **Função:** Gera um som de motor cuja frequência é proporcional ao RPM atual do veículo.  
+    * **Comunicação:** Lê o valor de RPM da fila de status do carro (`xCarStatusQueue`) e ajusta a frequência de um sinal PWM enviado a um buzzer.  
+
+5.  **`vOledTask` (Interface de Exibição):**  
+    * **Função:** É responsável por atualizar o display OLED com as informações de telemetria do veículo.  
+    * **Comunicação:** Recebe o `car_status_t` da fila e formata os dados de velocidade, RPM, marcha e outros indicadores para exibição.  
+
+6.  **`vInjectorTask` (Simulação dos Injetores de Combustível):**  
+    * **Função:** Esta nova funcionalidade simula a operação dos injetores de combustível do motor. A frequência dos pulsos de injeção é dinamicamente ajustada com base no RPM do motor.  
+    * **Comunicação:** Lê o RPM da fila `xCarStatusQueue`.  
+    * **Lógica:** Calcula um intervalo de pulso que é inversamente proporcional ao RPM — quanto maior a rotação do motor, mais rápidos são os pulsos. A tarefa então aciona sequencialmente quatro LEDs na matriz de LEDs, representando o ciclo de injeção dos quatro cilindros do motor, oferecendo um feedback visual dinâmico da atividade do motor.  
+
+7.  **`vMonitorTask` (Tarefa de Depuração)**  
+    * **Função:** Esta tarefa foi criada exclusivamente para fins de depuração durante o desenvolvimento. Sua única responsabilidade é monitorar os dados que trafegam pelas principais filas de comunicação do sistema (`xJoystickQueue` e `xCarStatusQueue`), exibindo seus valores em tempo real no terminal serial. Ela não controla nenhum hardware e não faz parte da lógica funcional do simulador final.  
+    * **Comunicação:** Atua como uma consumidora de dados de ambas as filas. Utiliza a função `xQueueReceive` para ler e **remover** as mensagens das filas. Isso permite inspecionar os dados exatos que estão sendo produzidos pela `vJoystickTask` e pela `vCarControlTask`.  
+    * **Lógica:** A cada 500 milissegundos, a tarefa tenta ler uma mensagem de cada fila e imporime os dados colhidos no monitor serial.  
+
+#### **Fluxo de Dados**
+
+A comunicação entre as tarefas é desacoplada pelo uso de filas. A `vJoystickTask` atua como produtora de dados de controle, enquanto a `vCarControlTask` os consome para produzir o estado do veículo. As demais tarefas (`vOledTask`, `vCarIndicatorsTask`, `vEngineSoundTask` e `vInjectorTask`) atuam como consumidoras do estado do veículo, cada uma traduzindo esses dados em uma saída específica (visual ou sonora).  
+Essa arquitetura modular, viabilizada pelo FreeRTOS, resulta em um sistema e escalável, onde funcionalidades podem ser adicionadas ou modificadas com impacto mínimo no restante do código, garantindo a operação concorrente e responsiva de todos os elementos da simulação.  
 
 ---
 
@@ -1181,7 +1215,6 @@ xQueueOverwrite() / xQueuePeek() / xQueueReceive(): Funções do FreeRTOS para i
 ---
 
 ## Referências 
-
 
 #### 🔹 Raspberry Pi Pico SDK
 - [Getting Started with Raspberry Pi Pico (PDF)](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)  
