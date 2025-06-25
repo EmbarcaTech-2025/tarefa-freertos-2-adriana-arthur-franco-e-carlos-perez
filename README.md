@@ -1133,12 +1133,12 @@ void entrada_matriz_desl(int posicao_led) {
 
 | **Tarefa**               | **Função**                         | **Prioridade**         | **Período / Delay**         | **Fonte de Dados**             |
 |--------------------------|------------------------------------|-------------------------|------------------------------|--------------------------------|
-| `vJoystickTask`          | Leitura do joystick                | `tskIDLE_PRIORITY + 4`  | 40 ms (`vTaskDelayUntil`)    | Leitura direta dos pinos/ADC   |
-| `vCarControlTask`        | Lógica de controle do carro        | `tskIDLE_PRIORITY + 3`  | 50 ms (`vTaskDelayUntil`)    | Fila do joystick (`Receive`)   |
-| `vCarIndicatorsTask`     | Controle de LEDs e buzina          | `tskIDLE_PRIORITY + 2`  | 20 ms (`vTaskDelayUntil`)    | Fila do carro (`Peek`)         |
-| `vEngineSoundTask`       | Geração de som do motor (PWM)      | `tskIDLE_PRIORITY + 1`  | 50 ms (`vTaskDelay`)         | Fila do carro (`Peek`)         |
-| `vInjectorTask`          | Simulação dos injetores (LEDs)     | `tskIDLE_PRIORITY + 0`  | 10–100 ms (depende do RPM)   | Fila do carro (`Peek`)         |
-| `vOledTask`              | Atualização do display OLED        | `tskIDLE_PRIORITY + 0`  | 100 ms (`vTaskDelayUntil`)   | Fila do carro (`Receive`)      |
+| `vJoystickTask`          | Leitura do joystick                | `tskIDLE_PRIORITY + 5`  | 40 ms (`vTaskDelayUntil`)    | Leitura direta dos pinos/ADC   |
+| `vCarControlTask`        | Lógica de controle do carro        | `tskIDLE_PRIORITY + 4`  | 50 ms (`vTaskDelayUntil`)    | Fila do joystick (`Receive`)   |
+| `vCarIndicatorsTask`     | Controle de LEDs e buzina          | `tskIDLE_PRIORITY + 3`  | 20 ms (`vTaskDelayUntil`)    | Fila do carro (`Peek`)         |
+| `vEngineSoundTask`       | Geração de som do motor (PWM)      | `tskIDLE_PRIORITY + 0`  | 50 ms (`vTaskDelay`)         | Fila do carro (`Peek`)         |
+| `vInjectorTask`          | Simulação dos injetores (LEDs)     | `tskIDLE_PRIORITY + 1`  | 10–100 ms (depende do RPM)   | Fila do carro (`Peek`)         |
+| `vOledTask`              | Atualização do display OLED        | `tskIDLE_PRIORITY + 2`  | 100 ms (`vTaskDelayUntil`)   | Fila do carro (`Receive`)      |
 
 **Observações:**  
 
