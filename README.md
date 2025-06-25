@@ -1091,6 +1091,31 @@ void entrada_matriz_desl(int posicao_led) {
 
 ## Detalhes da implementação
 
+**Tabela com as prioridades e temporizações das tarefas do projeto:**  
+
+
+| **Tarefa**           | **Função**            | **Prioridade**         | **Período / Delay**             | **Fonte de Dados**           |
+| -------------------- | --------------------- | ---------------------- | ------------------------------- | ---------------------------- |
+| `vJoystickTask`      | Leitura do joystick   | `tskIDLE_PRIORITY + 4` | 40 ms (`vTaskDelayUntil`)       | Leitura direta dos pinos/ADC |
+| `vCarControlTask`    | Lógica do carro       | `tskIDLE_PRIORITY + 3` | 50 ms (`vTaskDelayUntil`)       | Fila do joystick             |
+| `vCarIndicatorsTask` | LEDs RGB + buzina     | `tskIDLE_PRIORITY + 2` | 20 ms (`vTaskDelayUntil`)       | Fila do carro + joystick     |
+| `vEngineSoundTask`   | PWM do motor (ronco)  | `tskIDLE_PRIORITY + 1` | 50 ms (`vTaskDelay`)            | Fila do carro (`Peek`)       |
+| `vInjectorTask`      | Efeitos na matriz LED | `tskIDLE_PRIORITY + 0` | \~10 ms base + `pulse_interval` | Fila do carro (`Peek`)       |
+| `vOledTask`          | Display OLED          | `tskIDLE_PRIORITY + 0` | 100 ms (`vTaskDelayUntil`)      | Fila do carro (`Receive`)    |
+
+---
+
+**Observações:**
+
+* A prioridade mais alta é da tarefa **JoystickTask** já que ela coleta os comandos do usuário.  
+* A tarefa **CarControlTask** vem logo em seguida, para reagir rapidamente aos comandos.  
+* As tarefas **CarIndicatorsTask** e **EngineSoundTask** usam `Peek`, ou seja, não consomem a fila, apenas observam.  
+* A tarefa **InjectorTask** alterna LEDs com um delay variável que depende do RPM (entre 10–100 ms).  
+* O **display OLED** é atualizado com menor frequência (100 ms).
+
+
+
+
 
 
 
